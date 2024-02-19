@@ -13,8 +13,5 @@ from datetime import datetime
 from collections import Counter
 from sklearn.preprocessing import MinMaxScaler
 
-
 df = pd.read_pickle(r"C:\Users\tamar\Downloads\XY_train.pkl")
-
-
-
+print(df)
