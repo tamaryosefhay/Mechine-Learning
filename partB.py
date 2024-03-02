@@ -1,19 +1,19 @@
-import graphviz
 import numpy as np
 import pandas as pd
+import sns
 from matplotlib import pyplot as plt
 from nltk import SnowballStemmer
 import re
-
 from scipy.stats import randint
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.preprocessing import MinMaxScaler
 from datetime import datetime
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.feature_selection import SelectKBest, chi2, RFE
 from sklearn.model_selection import train_test_split, KFold, GridSearchCV, RandomizedSearchCV
-from sklearn.metrics import roc_auc_score, accuracy_score
+from sklearn.metrics import roc_auc_score, accuracy_score, confusion_matrix
+from sklearn.svm import LinearSVC
 from sklearn.tree import DecisionTreeClassifier, export_graphviz, plot_tree
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler, MinMaxScaler
 
 df = pd.read_pickle(r"C:\Users\tamar\Downloads\XY_train.pkl")
 print(df)
@@ -308,8 +308,6 @@ def test_preprocess_data(df, x, y, z):
 
 # ----------------------------------PART B------------------------------------------------------------------------>
 
-#-----Decision Trees------------>
-
 #SPLITTING THE DATA INTO TRAINING AND TESTING
 # Step 1: Preprocess the data
 df = preprocess_data(df)
@@ -336,6 +334,8 @@ x = max_value_list[1]
 y = max_value_list[2]
 z = max_value_list[3]
 X_test = test_preprocess_data(X_test, x, y, z)
+
+#------------------------------------------Decision Trees---------------------------------------------->
 
 # CHOOSING THE BEST PARAMETERS FOR THE MODEL
 param_dist = {
@@ -380,3 +380,195 @@ plt.xlabel('Importance')
 plt.ylabel('Feature')
 plt.title('Feature Importances')
 plt.show()
+
+
+#------------------------------------------Artificial Neural Networks---------------------------------------------->
+
+# Initialize the MLPClassifier with default values or specify parameters
+model = MLPClassifier(random_state=42)
+# Train the classifier
+model.fit(X_train, Y_train)
+# Step 4: Model Evaluation
+# Predict probabilities on training set
+y_train_pred_proba = model.predict_proba(X_train)[:, 1]
+# Predict probabilities on validation set
+y_val_pred_proba = model.predict_proba(X_test)[:, 1]
+# Calculate AUC-ROC
+train_auc = roc_auc_score(Y_train, y_train_pred_proba)
+val_auc = roc_auc_score(Y_test, y_val_pred_proba)
+print("Training AUC-ROC:", train_auc)
+print("Validation AUC-ROC:", val_auc)
+
+#HYPERPARAMETER TUNING
+#1111111111111111111111111111111111
+# Define the hyperparameter grid
+param_grid = {
+    'max_iter': [100, 200, 300, 400, 500, 600, 700]
+}
+# Initialize lists to store accuracy values
+train_auc_list = []
+val_auc_list = []
+max_iter_list = []
+# Initialize the classifier
+model = MLPClassifier(random_state=42)
+# Initialize GridSearchCV
+grid_search = GridSearchCV(model, param_grid, cv=5, scoring='roc_auc', n_jobs=-1)
+# Fit GridSearchCV
+grid_search.fit(X_train, Y_train)
+# Get the results for each iteration
+for i, params in enumerate(grid_search.cv_results_['params']):
+    max_iter = params['max_iter']
+    mean_fit_time = grid_search.cv_results_['mean_fit_time'][i]
+    mean_test_score = grid_search.cv_results_['mean_test_score'][i]
+
+    max_iter_list.append(max_iter)
+    train_auc_list.append(mean_fit_time)
+    val_auc_list.append(mean_test_score)
+
+    print(f"Max Iterations: {max_iter}, Training Time: {mean_fit_time}, Validation AUC-ROC: {mean_test_score}")
+# Plot the results
+plt.figure(figsize=(10, 6))
+plt.plot(max_iter_list, train_auc_list, label='Training Time')
+plt.plot(max_iter_list, val_auc_list, label='Validation AUC-ROC')
+plt.xlabel('Max Iterations')
+plt.ylabel('Score')
+plt.title('Model Performance vs Max Iterations')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+#222222222222222222222222222222222222222
+# Define the hyperparameter grid
+param_grid = {
+    'hidden_layer_sizes': [(10,), (50,), (100,), (10, 10), (50, 50), (100, 100)]
+}
+# Initialize lists to store accuracy values
+train_auc_list = []
+val_auc_list = []
+hidden_layer_sizes_list = []
+# Initialize the classifier
+model = MLPClassifier(random_state=42)
+# Initialize GridSearchCV
+grid_search = GridSearchCV(model, param_grid, cv=5, scoring='roc_auc',return_train_score=True, n_jobs=-1)
+# Fit GridSearchCV
+grid_search.fit(X_train, Y_train)
+# Get the results for each iteration
+for i, params in enumerate(grid_search.cv_results_['params']):
+    hidden_layer_sizes = params['hidden_layer_sizes']
+    hidden_layer_sizes_str = str(hidden_layer_sizes)  # Convert to string representation
+    mean_train_score = grid_search.cv_results_['mean_train_score'][i]
+    mean_test_score = grid_search.cv_results_['mean_test_score'][i]
+
+    hidden_layer_sizes_list.append(hidden_layer_sizes)
+    train_auc_list.append(mean_train_score)
+    val_auc_list.append(mean_test_score)
+
+    print(f"Hidden Layer Sizes: {hidden_layer_sizes}, Training AUC-ROC: {mean_train_score}, Validation AUC-ROC: {mean_test_score}")
+#print the best hyperparameters
+print("Best hyperparameters:", grid_search.best_params_)
+
+#33333333333333333333333333333333333333333
+# Define the activation functions
+activation_functions = ['identity', 'logistic', 'tanh', 'relu']
+# Initialize an empty list to store the ROC AUC scores
+roc_auc_scores = []
+
+# Loop through each activation function
+for activation in activation_functions:
+    # Initialize the MLPClassifier with the specified activation function
+    model = MLPClassifier(activation=activation, random_state=42)
+    # Train the classifier
+    model.fit(X_train, Y_train)
+    # Predict probabilities on validation set
+    y_val_pred_proba = model.predict_proba(X_test)[:, 1]
+    # Calculate ROC AUC score
+    roc_auc = roc_auc_score(Y_test, y_val_pred_proba)
+    # Append the ROC AUC score to the list
+    roc_auc_scores.append(roc_auc)
+
+# Create a DataFrame with the activation functions and their ROC AUC scores
+activation_results = pd.DataFrame({'activation': activation_functions, 'ROC AUC': roc_auc_scores})
+print(activation_results)
+
+# 44444444444444444444444444444444
+solver_activation_map = {
+    'lbfgs': 'tanh',
+    'sgd': 'tanh',
+    'adam': 'tanh'
+}
+solver_roc_auc_scores = []
+
+# Loop through each solver
+for solver, activation in solver_activation_map.items():
+    # Initialize the MLPClassifier with the specified solver and activation function
+    model = MLPClassifier(solver=solver, activation=activation, random_state=42)
+    # Train the classifier
+    model.fit(X_train, Y_train)
+    # Predict probabilities on validation set
+    y_val_pred_proba = model.predict_proba(X_test)[:, 1]
+    # Calculate ROC AUC score
+    roc_auc = roc_auc_score(Y_test, y_val_pred_proba)
+    # Append the ROC AUC score to the list
+    solver_roc_auc_scores.append(roc_auc)
+
+# Create a DataFrame with the solvers and their corresponding ROC AUC scores
+roc_auc_df = pd.DataFrame({'solver': list(solver_activation_map.keys()), 'roc_auc': solver_roc_auc_scores})
+print(roc_auc_df)
+
+#CONFUSION MATRIX FOR THE BEST MODEL
+# Initialize the MLPClassifier with specified parameters
+model = MLPClassifier(random_state=42,
+                      max_iter=400,
+                      hidden_layer_sizes=(50, 50),
+                      activation='tanh',
+                      solver='sgd')
+
+# Train the classifier
+model.fit(X_train, Y_train)
+
+# Predict probabilities on training set
+y_train_pred_proba = model.predict_proba(X_train)[:, 1]
+
+# Predict probabilities on validation set
+y_val_pred_proba = model.predict_proba(X_test)[:, 1]
+
+# Calculate AUC-ROC
+train_auc = roc_auc_score(Y_train, y_train_pred_proba)
+val_auc = roc_auc_score(Y_test, y_val_pred_proba)
+print("Training AUC-ROC:", train_auc)
+print("Validation AUC-ROC:", val_auc)
+
+# Create a confusion matrix
+y_pred = model.predict(X_test)
+conf_matrix = confusion_matrix(Y_test, y_pred)
+print("Confusion Matrix:\n", conf_matrix)
+
+# Plot the confusion matrix
+sns.heatmap(conf_matrix, annot=True, fmt='d', cmap='Blues')
+plt.xlabel('Predicted')
+plt.ylabel('Actual')
+plt.title('Confusion Matrix')
+plt.show()
+
+# ------------------------------------------SVN---------------------------------------------->
+C_values = np.arange(1, 2.1, 0.1)
+auc_scores = []
+for C in C_values:
+    model = LinearSVC(C=C, random_state=42)
+    model.fit(X_train, Y_train)
+    Y_test_pred = model.decision_function(X_test)
+    auc_score = roc_auc_score(Y_test, Y_test_pred)
+    auc_scores.append(auc_score)
+
+print(pd.DataFrame({'C': C_values, 'AUC-ROC': auc_scores}))
+auc_scores_df = pd.DataFrame({'C': C_values, 'AUC-ROC': auc_scores})
+optimal_C = auc_scores_df.loc[auc_scores_df['AUC-ROC'].idxmax(), 'C']
+optimal_model = LinearSVC(C=optimal_C, random_state=42)
+optimal_model.fit(X_train, Y_train)
+coefficients = optimal_model.coef_
+print("Coefficients:", coefficients)
+
+
+
+
+
