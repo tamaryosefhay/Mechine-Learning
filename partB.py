@@ -521,7 +521,7 @@ model = MLPClassifier(random_state=42,
                       max_iter=400,
                       hidden_layer_sizes=(50, 50),
                       activation='tanh',
-                      solver='sgd')
+                      solver='adam')
 
 # Train the classifier
 model.fit(X_train, Y_train)
