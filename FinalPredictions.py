@@ -15,13 +15,13 @@ import seaborn as sns
 from sklearn.svm import LinearSVC
 
 df = pd.read_pickle(r"C:\Users\tamar\Downloads\XY_train.pkl")
+test_df = pd.read_pickle(r"C:\Users\tamar\Downloads\X_test (1).pkl")
+
 print(df)
 
 
 # 1.Preprocessing ----------------------------------------------------------------------------------------------->
 def preprocess_data(df):
-    # Drop rows with missing values exceeding a threshold
-    df = df.dropna(thresh=df.shape[1] - 2)
 
     # Fill missing values for 'email' with 'unknown'
     df['email'] = df['email'].fillna('unknown')
@@ -43,14 +43,27 @@ def preprocess_data(df):
     df['email_verified'].fillna(df['blue_tick'], inplace=True)
     df['blue_tick'].fillna(df['email_verified'], inplace=True)
 
+    def fill_missing(row):
+        # If both attributes are missing, fill randomly
+        if pd.isnull(row['email_verified']) and pd.isnull(row['blue_tick']):
+            return pd.Series([np.random.choice([True, False]), np.random.choice([True, False])])
+        # If one attribute is missing, fill it with the value of the other attribute
+        elif pd.isnull(row['email_verified']):
+            return pd.Series([row['blue_tick'], row['blue_tick']])
+        elif pd.isnull(row['blue_tick']):
+            return pd.Series([row['email_verified'], row['email_verified']])
+        # If both attributes are not missing, leave them unchanged
+        else:
+            return pd.Series([row['email_verified'], row['blue_tick']])
+
+    # Apply the custom function to fill missing values
+    df[['email_verified', 'blue_tick']] = df.apply(fill_missing, axis=1)
+
     # Fill missing values for 'gender' randomly
     df['gender'].replace('None', np.nan, inplace=True)
     gender_counts = df['gender'].value_counts()
     df['gender'].fillna(pd.Series(np.random.choice(gender_counts.index, size=len(df.index),
                                                    p=(gender_counts / gender_counts.sum()))), inplace=True)
-
-    # Delete the remaining rows with missing values
-    df = df.dropna()
 
     # Convert 'message_date' to categorical and create 'message_time_category' column
     df['message_date'] = pd.to_datetime(df['message_date'])
@@ -308,31 +321,33 @@ def test_preprocess_data(df, x, y, z):
 
 # ----------------------------------PART B------------------------------------------------------------------------>
 
-# SPLITTING THE DATA INTO TRAINING AND TESTING
-# Step 1: Preprocess the data
-df = preprocess_data(df)
-# Define dataset (X, y)
-X = df.drop(columns=['sentiment'])
-Y = df['sentiment']
-# Split the dataset into training and test sets
-X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)
-# Merge X_train and y_train into one DataFrame for feature extraction
-train_df = pd.concat([X_train, Y_train], axis=1)
-# Step 1: Extract features from the training data
-train_features, new_columns_train, df_output_train = extract_features(train_df)
+processed_df = preprocess_data(df)
+processed_df_test = preprocess_data(test_df)
+
+train_features, new_columns_train, df_output_train = extract_features(processed_df)
 ngram_vectorizer = CountVectorizer(ngram_range=(1, 2), max_features=100)
 X_train_ngrams = ngram_vectorizer.fit_transform(train_features['clean_text']).toarray()
-# Step 2: Perform feature representation on training data
 train_represented, max_value_list = feature_representation(train_features, new_columns_train, df_output_train)
-# Step 3: Perform feature selection on training data
 train_selected = feature_selection(train_represented, 10)
-# step 4: slippling the data into X and y
 X_train = train_selected.drop(columns=['sentiment'])
 Y_train = train_selected['sentiment']
-# Step 5: Preprocess the test data
+
 x = max_value_list[1]
 y = max_value_list[2]
 z = max_value_list[3]
-X_test = test_preprocess_data(X_test, x, y, z)
 
+test_selected = test_preprocess_data(processed_df_test, x, y, z)
+
+# Initialize the MLPClassifier with specified parameters
+model = MLPClassifier(random_state=42,
+                      max_iter=400,
+                      hidden_layer_sizes=(50, 50),
+                      activation='tanh',
+                      solver='adam')
+
+# Train the classifier
+model.fit(X_train, Y_train)
+FinalPredictions = pd.DataFrame(model.predict(test_selected))
+FinalPredictions = FinalPredictions.rename(columns={0: 'y'})
+FinalPredictions.to_csv('FinalPredictions.csv', index=False)
 
